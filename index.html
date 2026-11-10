@@ -88,14 +88,18 @@
     figcaption button { display: none; background: none; border: 0; border-bottom: 1px solid currentColor; padding: .2rem 0; cursor: pointer; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
     .print-btn { width: 100%; margin-top: 1.5rem; min-height: 3.4rem; font-size: .82rem; }
 
-    /* Stampa: si vede solo il foglio pronto (A4 orizzontale, senza margini del browser) */
-    #print-sheet { display: none; }
+    /* Stampa: si stampa solo l'anteprima del foglio (A4 orizzontale, senza margini del browser) */
     @media print {
       @page { size: A4 landscape; margin: 0; }
       html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-      body > *:not(#print-sheet) { display: none !important; }
-      #print-sheet { display: block; width: 297mm; height: 209mm; overflow: hidden; }
-      #print-sheet img { display: block; width: 100%; height: 100%; object-fit: contain; }
+      .top, .wrap > div:not(.out), .out > :not(.sheet), .sheet figcaption { display: none !important; }
+      .wrap, .out, .sheet { display: block !important; position: static !important; margin: 0 !important; padding: 0 !important; max-width: none !important; }
+      #cv-page { width: 296mm !important; height: 209mm !important; border: 0 !important; box-shadow: none !important; }
+    }
+    /* Se il dispositivo stampa comunque in verticale (iPhone/iPad a volte ignorano "orizzontale"),
+       il foglio viene girato di 90°: sulla carta il risultato è lo stesso */
+    @media print and (orientation: portrait) {
+      #cv-page { transform-origin: 0 0; transform: translate(0, 296mm) rotate(-90deg); }
     }
     .missing { font-size: .85rem; color: var(--mute); margin-top: .8rem; min-height: 1.3em; }
   </style>
@@ -530,12 +534,13 @@ function drawBack(cv, d) {
   r.lines.forEach(function(l) { ctx.fillText(l, x0, yy); yy += r.s * 1.25; });
 }
 
-function draw() {
-  return assetsReady.then(function() {
-    var d = data(); drawFront($('cv-front'), d); drawBack($('cv-back'), d);
-    $('cv-page').getContext('2d').drawImage(pageCanvas(), 0, 0);   /* anteprima del foglio */
-  });
+var assetsLoaded = false;
+assetsReady.then(function() { assetsLoaded = true; });
+function drawNow() {
+  var d = data(); drawFront($('cv-front'), d); drawBack($('cv-back'), d);
+  $('cv-page').getContext('2d').drawImage(pageCanvas(), 0, 0);     /* anteprima del foglio */
 }
+function draw() { return assetsReady.then(drawNow); }
 var drawT = null;
 function update() {
   var d = data();
@@ -593,23 +598,12 @@ function pageCanvas() {
   return c;
 }
 
-/* Stampa: prepara il foglio come immagine e apre la finestra di stampa del dispositivo */
+/* Stampa: il foglio è già pronto nell'anteprima, quindi la stampa si apre nello stesso
+   istante del tocco (iPhone e iPad la bloccano se arriva dopo un'attesa) */
 $('print-btn').addEventListener('click', function() {
-  var btn = this;
-  btn.disabled = true;
-  draw().then(function() {
-    var box = $('print-sheet');
-    if (!box) { box = document.createElement('div'); box.id = 'print-sheet'; document.body.appendChild(box); }
-    box.innerHTML = '';
-    var img = new Image();
-    img.alt = '';
-    img.onload = function() {
-      btn.disabled = false;
-      setTimeout(function() { window.print(); }, 60);
-    };
-    img.src = $('cv-page').toDataURL('image/png');
-    box.appendChild(img);
-  }).catch(function() { btn.disabled = false; });
+  clearTimeout(drawT);
+  if (assetsLoaded) drawNow();
+  window.print();
 });
 
 syncMode(); renderChips(); update();
