@@ -188,9 +188,10 @@
       </figure>
     </div>
     <div class="downloads">
-      <button type="button" class="btn ghost" id="dl-png">PNG fronte e retro</button>
-      <button type="button" class="btn" id="dl-pdf">PDF fronte e retro</button>
+      <button type="button" class="btn ghost" id="dl-png">PNG da stampare</button>
+      <button type="button" class="btn" id="dl-pdf">PDF da stampare (A4)</button>
     </div>
+    <p class="hint" style="margin-top:.7rem;">Un solo foglio A4 orizzontale: fronte a sinistra, retro a destra. Ritaglia seguendo i segni agli angoli e piega a metà lungo i segni al centro.</p>
     <p class="missing" id="missing" aria-live="polite"></p>
   </div>
 
@@ -562,19 +563,45 @@ function savePng(side) {
 Array.prototype.forEach.call(document.querySelectorAll('[data-dl]'), function(b) {
   b.addEventListener('click', function() { savePng(b.getAttribute('data-dl')); });
 });
+/* Foglio unico: fronte a sinistra e retro a destra, attaccati, da piegare a metà */
+function sheetCanvas() {
+  var c = document.createElement('canvas');
+  c.width = EW * 2; c.height = EH;
+  var ctx = c.getContext('2d');
+  ctx.drawImage($('cv-front'), 0, 0);
+  ctx.drawImage($('cv-back'), EW, 0);
+  return c;
+}
 $('dl-png').addEventListener('click', function() {
-  savePng('front').then(function() { setTimeout(function() { savePng('back'); }, 400); });
+  draw().then(function() {
+    sheetCanvas().toBlob(function(b) { saveBlob(b, base() + '-da-stampare.png'); }, 'image/png');
+  });
 });
 $('dl-pdf').addEventListener('click', function() {
   if (!window.jspdf) { alert('Impossibile creare il PDF: controlla la connessione e ricarica la pagina.'); return; }
   draw().then(function() {
-    // una pagina per lato, grande quanto il buono (210 x 129,6 mm): stampa fronte/retro
-    var W = 210, H = W * EH / EW;
-    var pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [W, H] });
-    pdf.addImage($('cv-front').toDataURL('image/png'), 'PNG', 0, 0, W, H);
-    pdf.addPage([W, H], 'landscape');
-    pdf.addImage($('cv-back').toDataURL('image/png'), 'PNG', 0, 0, W, H);
-    pdf.save(base() + '.pdf');
+    // A4 orizzontale: i due lati affiancati, centrati, con i segni di taglio agli angoli
+    // e i segni di piega al centro (tutti fuori dal buono, così non si vedono dopo il taglio)
+    var PW = 297, PH = 210, M = 12;
+    var cw = (PW - 2 * M) / 2, ch = cw * EH / EW;
+    var x0 = M, y0 = (PH - ch) / 2, x1 = x0 + 2 * cw, y1 = y0 + ch, xm = x0 + cw;
+    var pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    pdf.addImage(sheetCanvas().toDataURL('image/jpeg', .95), 'JPEG', x0, y0, 2 * cw, ch);
+    pdf.setDrawColor(90); pdf.setLineWidth(.2);
+    var g = 2, L = 6;                                   // distanza dal buono e lunghezza dei segni
+    [[x0, y0, -1, -1], [x1, y0, 1, -1], [x0, y1, -1, 1], [x1, y1, 1, 1]].forEach(function(c) {
+      pdf.line(c[0] + c[2] * g, c[1], c[0] + c[2] * (g + L), c[1]);   // orizzontale
+      pdf.line(c[0], c[1] + c[3] * g, c[0], c[1] + c[3] * (g + L));   // verticale
+    });
+    pdf.setLineDashPattern([1, 1], 0);
+    pdf.line(xm, y0 - g, xm, y0 - g - L);
+    pdf.line(xm, y1 + g, xm, y1 + g + L);
+    pdf.setLineDashPattern([], 0);
+    pdf.setFontSize(7); pdf.setTextColor(120);
+    pdf.text('piega', xm, y0 - g - L - 1.5, { align: 'center' });
+    pdf.text('Fronte', x0, y1 + g + L + 3);
+    pdf.text('Retro', x1, y1 + g + L + 3, { align: 'right' });
+    pdf.save(base() + '-da-stampare.pdf');
   });
 });
 
