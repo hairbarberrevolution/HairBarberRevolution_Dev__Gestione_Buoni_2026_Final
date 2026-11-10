@@ -80,7 +80,8 @@
     .check { display: flex; align-items: center; gap: .55rem; font-size: .88rem; text-transform: none; letter-spacing: 0; font-weight: 400; cursor: pointer; margin: .2rem 0 0; }
     .check input { width: 1.05rem; height: 1.05rem; accent-color: var(--ink); }
 
-    .faces { display: grid; gap: 1rem; }
+    .faces[hidden] { display: none; }
+    .sheet canvas { border: 1px solid var(--line); }
     figure { margin: 0; }
     canvas { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 24px 48px -28px rgba(13,13,13,.5), 0 1px 4px rgba(13,13,13,.12); }
     figcaption { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: .5rem; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
@@ -185,16 +186,16 @@
 
   <div class="out">
     <h2><span class="n">3</span>Stampa il buono</h2>
-    <div class="faces">
-      <figure>
-        <canvas id="cv-front" width="2100" height="1296" role="img" aria-label="Fronte del buono"></canvas>
-        <figcaption><span>Fronte</span></figcaption>
-      </figure>
-      <figure>
-        <canvas id="cv-back" width="2100" height="1296" role="img" aria-label="Retro del buono"></canvas>
-        <figcaption><span>Retro</span></figcaption>
-      </figure>
+    <!-- Fronte e retro si disegnano qui (nascosti) e poi si compongono nel foglio unico -->
+    <div class="faces" hidden>
+      <canvas id="cv-front" width="2100" height="1296"></canvas>
+      <canvas id="cv-back" width="2100" height="1296"></canvas>
     </div>
+    <!-- Anteprima del foglio che si stampa: A4 orizzontale, fronte a sinistra e retro a destra -->
+    <figure class="sheet">
+      <canvas id="cv-page" width="2970" height="2100" role="img" aria-label="Anteprima del foglio da stampare: fronte a sinistra, retro a destra"></canvas>
+      <figcaption><span>Fronte</span><span>Piega al centro</span><span>Retro</span></figcaption>
+    </figure>
     <button type="button" class="btn print-btn" id="print-btn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Stampa
@@ -530,7 +531,10 @@ function drawBack(cv, d) {
 }
 
 function draw() {
-  return assetsReady.then(function() { var d = data(); drawFront($('cv-front'), d); drawBack($('cv-back'), d); });
+  return assetsReady.then(function() {
+    var d = data(); drawFront($('cv-front'), d); drawBack($('cv-back'), d);
+    $('cv-page').getContext('2d').drawImage(pageCanvas(), 0, 0);   /* anteprima del foglio */
+  });
 }
 var drawT = null;
 function update() {
@@ -603,7 +607,7 @@ $('print-btn').addEventListener('click', function() {
       btn.disabled = false;
       setTimeout(function() { window.print(); }, 60);
     };
-    img.src = pageCanvas().toDataURL('image/png');
+    img.src = $('cv-page').toDataURL('image/png');
     box.appendChild(img);
   }).catch(function() { btn.disabled = false; });
 });
