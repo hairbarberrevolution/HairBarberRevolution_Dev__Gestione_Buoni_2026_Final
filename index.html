@@ -12,7 +12,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@400;500;600&display=swap" rel="stylesheet" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="SERVIZI_DONNA.js" onerror="void 0"></script>
   <script src="SERVIZI_UOMO.js" onerror="void 0"></script>
   <style>
@@ -85,9 +84,18 @@
     figure { margin: 0; }
     canvas { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 24px 48px -28px rgba(13,13,13,.5), 0 1px 4px rgba(13,13,13,.12); }
     figcaption { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: .5rem; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
-    figcaption button { background: none; border: 0; border-bottom: 1px solid currentColor; padding: .2rem 0; cursor: pointer; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
-    .downloads { display: grid; grid-template-columns: 1fr; gap: .6rem; margin-top: 1.5rem; }
-    @media (min-width: 560px) { .downloads { grid-template-columns: 1fr 1fr; } }
+    figcaption button { display: none; background: none; border: 0; border-bottom: 1px solid currentColor; padding: .2rem 0; cursor: pointer; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+    .print-btn { width: 100%; margin-top: 1.5rem; min-height: 3.4rem; font-size: .82rem; }
+
+    /* Stampa: si vede solo il foglio pronto (A4 orizzontale, senza margini del browser) */
+    #print-sheet { display: none; }
+    @media print {
+      @page { size: A4 landscape; margin: 0; }
+      html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+      body > *:not(#print-sheet) { display: none !important; }
+      #print-sheet { display: block; width: 297mm; height: 209mm; overflow: hidden; }
+      #print-sheet img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    }
     .missing { font-size: .85rem; color: var(--mute); margin-top: .8rem; min-height: 1.3em; }
   </style>
 </head>
@@ -176,22 +184,22 @@
   </div>
 
   <div class="out">
-    <h2><span class="n">3</span>Scarica il buono</h2>
+    <h2><span class="n">3</span>Stampa il buono</h2>
     <div class="faces">
       <figure>
         <canvas id="cv-front" width="2100" height="1296" role="img" aria-label="Fronte del buono"></canvas>
-        <figcaption><span>Fronte</span><button type="button" data-dl="front">Scarica PNG</button></figcaption>
+        <figcaption><span>Fronte</span></figcaption>
       </figure>
       <figure>
         <canvas id="cv-back" width="2100" height="1296" role="img" aria-label="Retro del buono"></canvas>
-        <figcaption><span>Retro</span><button type="button" data-dl="back">Scarica PNG</button></figcaption>
+        <figcaption><span>Retro</span></figcaption>
       </figure>
     </div>
-    <div class="downloads">
-      <button type="button" class="btn ghost" id="dl-png">PNG da stampare</button>
-      <button type="button" class="btn" id="dl-pdf">PDF da stampare (A4)</button>
-    </div>
-    <p class="hint" style="margin-top:.7rem;">Un solo foglio A4 orizzontale: fronte a sinistra, retro a destra. Ritaglia seguendo i segni agli angoli e piega a metà lungo i segni al centro.</p>
+    <button type="button" class="btn print-btn" id="print-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Stampa
+    </button>
+    <p class="hint" style="margin-top:.7rem;">Si apre la stampa del dispositivo (computer, iPhone, Android): un solo foglio A4 orizzontale con il fronte a sinistra e il retro a destra. Ritaglia seguendo i segni agli angoli e piega a metà lungo i segni al centro. Da lì puoi anche salvarlo come PDF.</p>
     <p class="missing" id="missing" aria-live="polite"></p>
   </div>
 
@@ -540,29 +548,8 @@ function update() {
 }
 
 /* ════════════════════════
-   DOWNLOAD PNG / PDF
+   STAMPA
 ════════════════════════ */
-function slug(s) {
-  return (s || 'buono').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'buono';
-}
-function base() { return 'buono-' + slug(val('f-per')); }
-function saveBlob(blob, name) {
-  var url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
-}
-function savePng(side) {
-  return draw().then(function() {
-    return new Promise(function(res) {
-      $(side === 'front' ? 'cv-front' : 'cv-back').toBlob(function(b) {
-        saveBlob(b, base() + (side === 'front' ? '-fronte' : '-retro') + '.png'); res();
-      }, 'image/png');
-    });
-  });
-}
-Array.prototype.forEach.call(document.querySelectorAll('[data-dl]'), function(b) {
-  b.addEventListener('click', function() { savePng(b.getAttribute('data-dl')); });
-});
 /* Foglio unico: fronte a sinistra e retro a destra, attaccati, da piegare a metà */
 function sheetCanvas() {
   var c = document.createElement('canvas');
@@ -572,37 +559,53 @@ function sheetCanvas() {
   ctx.drawImage($('cv-back'), EW, 0);
   return c;
 }
-$('dl-png').addEventListener('click', function() {
-  draw().then(function() {
-    sheetCanvas().toBlob(function(b) { saveBlob(b, base() + '-da-stampare.png'); }, 'image/png');
+
+/* Pagina A4 orizzontale già composta (10 px per mm): i due lati affiancati e centrati,
+   segni di taglio agli angoli e di piega al centro, tutti fuori dal buono */
+function pageCanvas() {
+  var K = 10, PW = 297 * K, PH = 210 * K, M = 16 * K;     /* 16 mm: i segni restano dentro l'area stampabile */
+  var cw = (PW - 2 * M) / 2, ch = cw * EH / EW;
+  var x0 = M, y0 = (PH - ch) / 2, x1 = x0 + 2 * cw, y1 = y0 + ch, xm = x0 + cw;
+  var c = document.createElement('canvas');
+  c.width = PW; c.height = PH;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, PW, PH);
+  ctx.drawImage(sheetCanvas(), x0, y0, 2 * cw, ch);
+  ctx.strokeStyle = '#5a5a5a'; ctx.lineWidth = 2;
+  var g = 2 * K, L = 6 * K;
+  function line(ax, ay, bx, by) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+  [[x0, y0, -1, -1], [x1, y0, 1, -1], [x0, y1, -1, 1], [x1, y1, 1, 1]].forEach(function(p) {
+    line(p[0] + p[2] * g, p[1], p[0] + p[2] * (g + L), p[1]);
+    line(p[0], p[1] + p[3] * g, p[0], p[1] + p[3] * (g + L));
   });
-});
-$('dl-pdf').addEventListener('click', function() {
-  if (!window.jspdf) { alert('Impossibile creare il PDF: controlla la connessione e ricarica la pagina.'); return; }
+  ctx.setLineDash([K, K]);
+  line(xm, y0 - g, xm, y0 - g - L);
+  line(xm, y1 + g, xm, y1 + g + L);
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#787878'; ctx.font = '500 ' + (2.6 * K) + 'px "Jost", sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('piega', xm, y0 - g - L - 1.5 * K);
+  ctx.textAlign = 'left'; ctx.fillText('Fronte', x0, y1 + g + L + 3.5 * K);
+  ctx.textAlign = 'right'; ctx.fillText('Retro', x1, y1 + g + L + 3.5 * K);
+  return c;
+}
+
+/* Stampa: prepara il foglio come immagine e apre la finestra di stampa del dispositivo */
+$('print-btn').addEventListener('click', function() {
+  var btn = this;
+  btn.disabled = true;
   draw().then(function() {
-    // A4 orizzontale: i due lati affiancati, centrati, con i segni di taglio agli angoli
-    // e i segni di piega al centro (tutti fuori dal buono, così non si vedono dopo il taglio)
-    var PW = 297, PH = 210, M = 12;
-    var cw = (PW - 2 * M) / 2, ch = cw * EH / EW;
-    var x0 = M, y0 = (PH - ch) / 2, x1 = x0 + 2 * cw, y1 = y0 + ch, xm = x0 + cw;
-    var pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    pdf.addImage(sheetCanvas().toDataURL('image/jpeg', .95), 'JPEG', x0, y0, 2 * cw, ch);
-    pdf.setDrawColor(90); pdf.setLineWidth(.2);
-    var g = 2, L = 6;                                   // distanza dal buono e lunghezza dei segni
-    [[x0, y0, -1, -1], [x1, y0, 1, -1], [x0, y1, -1, 1], [x1, y1, 1, 1]].forEach(function(c) {
-      pdf.line(c[0] + c[2] * g, c[1], c[0] + c[2] * (g + L), c[1]);   // orizzontale
-      pdf.line(c[0], c[1] + c[3] * g, c[0], c[1] + c[3] * (g + L));   // verticale
-    });
-    pdf.setLineDashPattern([1, 1], 0);
-    pdf.line(xm, y0 - g, xm, y0 - g - L);
-    pdf.line(xm, y1 + g, xm, y1 + g + L);
-    pdf.setLineDashPattern([], 0);
-    pdf.setFontSize(7); pdf.setTextColor(120);
-    pdf.text('piega', xm, y0 - g - L - 1.5, { align: 'center' });
-    pdf.text('Fronte', x0, y1 + g + L + 3);
-    pdf.text('Retro', x1, y1 + g + L + 3, { align: 'right' });
-    pdf.save(base() + '-da-stampare.pdf');
-  });
+    var box = $('print-sheet');
+    if (!box) { box = document.createElement('div'); box.id = 'print-sheet'; document.body.appendChild(box); }
+    box.innerHTML = '';
+    var img = new Image();
+    img.alt = '';
+    img.onload = function() {
+      btn.disabled = false;
+      setTimeout(function() { window.print(); }, 60);
+    };
+    img.src = pageCanvas().toDataURL('image/png');
+    box.appendChild(img);
+  }).catch(function() { btn.disabled = false; });
 });
 
 syncMode(); renderChips(); update();
